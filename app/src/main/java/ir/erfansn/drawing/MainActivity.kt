@@ -66,7 +66,8 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                                             action = Action.Moving
                                         }
                                     } else {
-                                        val element = createElement(position, position, tool)
+                                        val id = elements.size
+                                        val element = createElement(id, position, position, tool)
                                         elements += element
 
                                         action = Action.Drawing
@@ -81,8 +82,7 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                                 PointerEventType.Move -> {
                                     if (action == Action.Drawing) {
                                         val element = elements.last()
-                                        val updatedElement =
-                                            createElement(element.startOffset, position, tool)
+                                        val updatedElement = createElement(elements.lastIndex, element.startOffset, position, tool)
                                         elements[elements.lastIndex] = updatedElement
                                     }
                                 }

@@ -9,6 +9,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 data class Element(
+    val id: Int,
     val startOffset: Offset,
     val endOffset: Offset,
     val path: Path,
@@ -45,12 +46,14 @@ fun isWithinElement(
 }
 
 fun createElement(
+    id: Int,
     startOffset: Offset,
     endOffset: Offset,
     type: Tool
 ) = when (type) {
     Tool.LineDrawing -> {
         Element(
+            id = id,
             startOffset = startOffset,
             endOffset = endOffset,
             path = Path().apply {
@@ -62,6 +65,7 @@ fun createElement(
     }
     Tool.RectangleDrawing -> {
         Element(
+            id = id,
             startOffset = startOffset,
             endOffset = endOffset,
             path = Path().apply {

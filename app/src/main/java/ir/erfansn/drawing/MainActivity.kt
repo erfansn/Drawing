@@ -27,6 +27,8 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import ir.erfansn.drawing.ui.theme.DrawingTheme
+import kotlin.math.max
+import kotlin.math.min
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,7 +36,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             DrawingTheme {
-                DrawingApp()
+                DrawingApp(
+                    modifier = Modifier.safeDrawingPadding()
+                )
             }
         }
     }
@@ -76,11 +80,6 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                                     }
                                 }
 
-                                PointerEventType.Release -> {
-                                    selectedElement = null
-                                    action = Action.None
-                                }
-
                                 PointerEventType.Move -> {
                                     when (action) {
                                         Action.Drawing -> {
@@ -98,6 +97,16 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                                         }
                                         Action.None -> {}
                                     }
+                                }
+
+                                PointerEventType.Release -> {
+                                    if (action == Action.Drawing) {
+                                        val element = elements.last()
+                                        val (point1, point2) = adjustElementCoordinates(element)
+                                        elements.updateElement(element.id, point1, point2, element.type)
+                                    }
+                                    selectedElement = null
+                                    action = Action.None
                                 }
                             }
                         }
@@ -129,6 +138,30 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                 onClick = { tool = Tool.Drawing(ElementType.Rectangle) },
                 text = "Rectangle"
             )
+        }
+    }
+}
+
+// For lines, the coordinates are adjusted so that the starting point is always to the left or above the ending point.
+// For rectangles, the coordinates are adjusted to ensure the top-left corner is always the starting point.
+private fun adjustElementCoordinates(element: Element): Pair<Offset, Offset> {
+    val (x1, y1) = element.point1
+    val (x2, y2) = element.point2
+    when (element.type) {
+        ElementType.Line -> {
+            if (x1 < x2 || (x1 == x2 && y1 < y2)) {
+                return Offset(x1, y1) to Offset(x2, y2)
+            } else {
+                return Offset(x2, y2) to Offset(x1, y1)
+            }
+        }
+
+        ElementType.Rectangle -> {
+            val minX = min(x1, x2)
+            val minY = min(y1, y2)
+            val maxX = max(x1, x2)
+            val maxY = max(y1, y2)
+            return Offset(minX, minY) to Offset(maxX, maxY)
         }
     }
 }

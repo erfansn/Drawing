@@ -50,31 +50,26 @@ fun createElement(
     startOffset: Offset,
     endOffset: Offset,
     type: ElementType
-) = when (type) {
-    ElementType.Line -> {
-        Element(
-            id = id,
-            point1 = startOffset,
-            point2 = endOffset,
-            path = Path().apply {
+) = Element(
+    id = id,
+    point1 = startOffset,
+    point2 = endOffset,
+    path = when (type) {
+        ElementType.Line -> {
+            Path().apply {
                 moveTo(startOffset.x, startOffset.y)
                 lineTo(endOffset.x, endOffset.y)
-            },
-            type = ElementType.Line
-        )
-    }
-    ElementType.Rectangle -> {
-        Element(
-            id = id,
-            point1 = startOffset,
-            point2 = endOffset,
-            path = Path().apply {
+            }
+        }
+
+        ElementType.Rectangle -> {
+            Path().apply {
                 addRect(rect = Rect(startOffset, endOffset))
-            },
-            type = ElementType.Rectangle
-        )
-    }
-}
+            }
+        }
+    },
+    type = type
+)
 
 fun SnapshotStateList<Element>.updateElement(
     id: Int,

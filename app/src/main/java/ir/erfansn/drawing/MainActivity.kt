@@ -44,9 +44,10 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun DrawingApp(modifier: Modifier = Modifier) {
-    var drawing by remember { mutableStateOf(false) }
+    var action by remember { mutableStateOf<Action>(Action.None) }
     val elements = remember { mutableStateListOf<Element>() }
-    var selectedElementType by remember { mutableStateOf<ElementType>(ElementType.Line) }
+    var tool by remember { mutableStateOf<Tool>(Tool.LineDrawing) }
+    var selectedElement  by remember { mutableStateOf<Element?>(null) }
     Box {
         Canvas(
             modifier = modifier
@@ -56,24 +57,34 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                         while (true) {
                             val event = awaitPointerEvent()
                             val position = event.changes.first().position
+
                             when (event.type) {
                                 PointerEventType.Press -> {
-                                    drawing = true
+                                    if (tool == Tool.Selecting) {
+                                        getElementAtPosition(position, elements)?.let {
+                                            selectedElement = it
+                                            action = Action.Moving
+                                        }
+                                    } else {
+                                        val element = createElement(position, position, tool)
+                                        elements += element
 
-                                    val element = createElement(position, position, selectedElementType)
-                                    elements += element
+                                        action = Action.Drawing
+                                    }
                                 }
 
                                 PointerEventType.Release -> {
-                                    drawing = false
+                                    selectedElement = null
+                                    action = Action.None
                                 }
 
                                 PointerEventType.Move -> {
-                                    if (!drawing) return@awaitPointerEventScope
-
-                                    val element = elements.last()
-                                    val updatedElement = createElement(element.startOffset, position, selectedElementType)
-                                    elements[elements.lastIndex] = updatedElement
+                                    if (action == Action.Drawing) {
+                                        val element = elements.last()
+                                        val updatedElement =
+                                            createElement(element.startOffset, position, tool)
+                                        elements[elements.lastIndex] = updatedElement
+                                    }
                                 }
                             }
                         }
@@ -91,13 +102,18 @@ fun DrawingApp(modifier: Modifier = Modifier) {
 
         Row(modifier = Modifier.selectableGroup()) {
             SelectableRow(
-                selected = selectedElementType == ElementType.Line,
-                onClick = { selectedElementType = ElementType.Line },
+                selected = tool == Tool.Selecting,
+                onClick = { tool = Tool.Selecting },
+                text = "Selection"
+            )
+            SelectableRow(
+                selected = tool == Tool.LineDrawing,
+                onClick = { tool = Tool.LineDrawing },
                 text = "Line"
             )
             SelectableRow(
-                selected = selectedElementType == ElementType.Rectangle,
-                onClick = { selectedElementType = ElementType.Rectangle },
+                selected = tool == Tool.RectangleDrawing,
+                onClick = { tool = Tool.RectangleDrawing },
                 text = "Rectangle"
             )
         }
@@ -120,28 +136,6 @@ private fun SelectableRow(
         Text(text)
     }
 }
-
-private fun createElement(
-    startOffset: Offset,
-    endOffset: Offset,
-    type: ElementType
-) = Element(
-    startOffset = startOffset,
-    endOffset = endOffset,
-    path = when (type) {
-        ElementType.Line -> {
-            Path().apply {
-                moveTo(startOffset.x, startOffset.y)
-                lineTo(endOffset.x, endOffset.y)
-            }
-        }
-        ElementType.Rectangle -> {
-            Path().apply {
-                addRect(rect = Rect(startOffset, endOffset))
-            }
-        }
-    }
-)
 
 @Preview(showBackground = true)
 @Composable

@@ -8,6 +8,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -20,11 +21,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
@@ -46,11 +44,12 @@ class MainActivity : ComponentActivity() {
 fun DrawingApp(modifier: Modifier = Modifier) {
     var action by remember { mutableStateOf<Action>(Action.None) }
     val elements = remember { mutableStateListOf<Element>() }
-    var tool by remember { mutableStateOf<Tool>(Tool.LineDrawing) }
-    var selectedElement  by remember { mutableStateOf<Element?>(null) }
-    Box {
+    var tool by remember { mutableStateOf<Tool>(Tool.Selecting) }
+    var selectedElement  by remember { mutableStateOf<Pair<Element, Offset>?>(null) }
+    Box(modifier = modifier) {
         Canvas(
-            modifier = modifier
+            modifier = Modifier
+                .safeDrawingPadding()
                 .fillMaxSize()
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
@@ -60,17 +59,20 @@ fun DrawingApp(modifier: Modifier = Modifier) {
 
                             when (event.type) {
                                 PointerEventType.Press -> {
-                                    if (tool == Tool.Selecting) {
-                                        getElementAtPosition(position, elements)?.let {
-                                            selectedElement = it
-                                            action = Action.Moving
-                                        }
-                                    } else {
-                                        val id = elements.size
-                                        val element = createElement(id, position, position, tool)
-                                        elements += element
+                                    when (val tool = tool) {
+                                        is Tool.Drawing -> {
+                                            val id = elements.size
+                                            elements += createElement(id, position, position, tool.type)
 
-                                        action = Action.Drawing
+                                            action = Action.Drawing
+                                        }
+                                        Tool.Selecting -> {
+                                            getElementAtPosition(position, elements)?.let {
+                                                selectedElement = it to (position - it.point1)
+
+                                                action = Action.Moving
+                                            }
+                                        }
                                     }
                                 }
 
@@ -80,10 +82,21 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                                 }
 
                                 PointerEventType.Move -> {
-                                    if (action == Action.Drawing) {
-                                        val element = elements.last()
-                                        val updatedElement = createElement(elements.lastIndex, element.startOffset, position, tool)
-                                        elements[elements.lastIndex] = updatedElement
+                                    when (action) {
+                                        Action.Drawing -> {
+                                            elements.updateElement(elements.lastIndex, point2 = position)
+                                        }
+                                        Action.Moving -> {
+                                            selectedElement?.let { (element, offset) ->
+                                                val newPosition = position - offset
+                                                elements.updateElement(
+                                                    id = element.id,
+                                                    point1 = newPosition,
+                                                    point2 = newPosition + (element.point2 - element.point1)
+                                                )
+                                            }
+                                        }
+                                        Action.None -> {}
                                     }
                                 }
                             }
@@ -107,13 +120,13 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                 text = "Selection"
             )
             SelectableRow(
-                selected = tool == Tool.LineDrawing,
-                onClick = { tool = Tool.LineDrawing },
+                selected = tool == Tool.Drawing(ElementType.Line),
+                onClick = { tool = Tool.Drawing(ElementType.Line) },
                 text = "Line"
             )
             SelectableRow(
-                selected = tool == Tool.RectangleDrawing,
-                onClick = { tool = Tool.RectangleDrawing },
+                selected = tool == Tool.Drawing(ElementType.Rectangle),
+                onClick = { tool = Tool.Drawing(ElementType.Rectangle) },
                 text = "Rectangle"
             )
         }

@@ -1,7 +1,6 @@
 package ir.erfansn.drawing
 
 sealed interface Tool {
-    data object LineDrawing : Tool
-    data object RectangleDrawing : Tool
+    data class Drawing(val type: ElementType) : Tool
     data object Selecting : Tool
 }

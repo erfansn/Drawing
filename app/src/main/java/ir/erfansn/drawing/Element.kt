@@ -1,17 +1,17 @@
 package ir.erfansn.drawing
 
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import kotlin.math.abs
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
 data class Element(
     val id: Int,
-    val startOffset: Offset,
-    val endOffset: Offset,
+    val point1: Offset,
+    val point2: Offset,
     val path: Path,
     val type: ElementType,
 )
@@ -24,23 +24,23 @@ fun getElementAtPosition(
 }
 
 fun isWithinElement(
-    offset: Offset,
+    point: Offset,
     element: Element
 ): Boolean {
     when (element.type) {
         ElementType.Line -> {
-            val lineLength = hypot(element.endOffset.x - element.startOffset.x, element.endOffset.y - element.startOffset.y)
-            val pointToEndLineDistance = hypot(element.endOffset.x - offset.x, element.endOffset.y - offset.y)
-            val pointToStartLineDistance = hypot(element.startOffset.x - offset.x, element.startOffset.y - offset.x)
+            val lineLength = (element.point1 - element.point2).getDistance()
+            val pointToStartLineDistance = (element.point1 - point).getDistance()
+            val pointToEndLineDistance = (element.point2 - point).getDistance()
             val offset = lineLength - (pointToStartLineDistance + pointToEndLineDistance)
-            return abs(offset) <= 1
+            return abs(offset) <= 10
         }
         ElementType.Rectangle -> {
-            val minX = min(element.startOffset.x, element.endOffset.x)
-            val minY = min(element.startOffset.y, element.endOffset.y)
-            val maxX = max(element.startOffset.x, element.endOffset.x)
-            val maxY = max(element.startOffset.y, element.endOffset.y)
-            return offset.x in minX..maxX && offset.y in minY..maxY
+            val minX = min(element.point1.x, element.point2.x)
+            val minY = min(element.point1.y, element.point2.y)
+            val maxX = max(element.point1.x, element.point2.x)
+            val maxY = max(element.point1.y, element.point2.y)
+            return point.x in minX..maxX && point.y in minY..maxY
         }
     }
 }
@@ -49,13 +49,13 @@ fun createElement(
     id: Int,
     startOffset: Offset,
     endOffset: Offset,
-    type: Tool
+    type: ElementType
 ) = when (type) {
-    Tool.LineDrawing -> {
+    ElementType.Line -> {
         Element(
             id = id,
-            startOffset = startOffset,
-            endOffset = endOffset,
+            point1 = startOffset,
+            point2 = endOffset,
             path = Path().apply {
                 moveTo(startOffset.x, startOffset.y)
                 lineTo(endOffset.x, endOffset.y)
@@ -63,16 +63,26 @@ fun createElement(
             type = ElementType.Line
         )
     }
-    Tool.RectangleDrawing -> {
+    ElementType.Rectangle -> {
         Element(
             id = id,
-            startOffset = startOffset,
-            endOffset = endOffset,
+            point1 = startOffset,
+            point2 = endOffset,
             path = Path().apply {
                 addRect(rect = Rect(startOffset, endOffset))
             },
             type = ElementType.Rectangle
         )
     }
-    else -> error("Unknown drawing tool")
+}
+
+fun SnapshotStateList<Element>.updateElement(
+    id: Int,
+    point1: Offset = this[id].point1,
+    point2: Offset = this[id].point2,
+    type: ElementType = this[id].type
+) {
+    val elementIndex = id
+    val updatedElement = createElement(elementIndex, point1, point2, type)
+    this[elementIndex] = updatedElement
 }

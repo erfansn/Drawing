@@ -1,7 +1,5 @@
 package ir.erfansn.drawing
 
-import androidx.annotation.Nullable
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
@@ -88,15 +86,16 @@ fun createElement(
     type = type
 )
 
-fun SnapshotStateList<Element>.updateElement(
+fun DrawingHistoryState.updateElement(
     id: Int,
-    point1: Offset = this[id].point1,
-    point2: Offset = this[id].point2,
-    type: ElementType = this[id].type
+    point1: Offset = currentElements[id].point1,
+    point2: Offset = currentElements[id].point2,
+    type: ElementType = currentElements[id].type
 ) {
-    val elementIndex = id
-    val updatedElement = createElement(elementIndex, point1, point2, type)
-    this[elementIndex] = updatedElement
+    val updatedCurrentElements = currentElements.toMutableList().apply {
+         this[id] = createElement(id, point1, point2, type)
+    }
+    saveState(updatedCurrentElements, overwrite = true)
 }
 
 fun resizeCoordinates(

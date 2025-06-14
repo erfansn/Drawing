@@ -5,4 +5,5 @@ sealed class Action {
     data object Drawing : Action()
     data object Moving : Action()
     data object Resizing : Action()
+    data object Panning : Action()
 }

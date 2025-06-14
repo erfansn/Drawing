@@ -6,6 +6,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,11 +37,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ir.erfansn.drawing.ui.theme.DrawingTheme
+import java.time.OffsetTime
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,6 +70,7 @@ fun DrawingApp(modifier: Modifier = Modifier) {
     var drawingHistory = remember { DrawingHistoryState() }
     var tool by remember { mutableStateOf<Tool>(Tool.Selecting) }
     var selectedElement  by remember { mutableStateOf<SelectedElement?>(null) }
+    var panOffset by remember { mutableStateOf(Offset.Zero) }
     Box(modifier = modifier) {
         Canvas(
             modifier = Modifier
@@ -71,11 +78,12 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                 .fillMaxSize()
                 .pointerInput(Unit) {
                     var offset = Offset.Zero
+                    fun touchCoordinate(point: Offset) = point - panOffset
 
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent()
-                            val eventPoint = event.changes.first().position
+                            val eventPoint = touchCoordinate(event.changes.first().position)
 
                             when (event.type) {
                                 PointerEventType.Press -> {
@@ -83,7 +91,7 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                                         is Tool.Drawing -> {
                                             val id = drawingHistory.currentElements.size
                                             drawingHistory.saveState(drawingHistory.currentElements + createElement(id, eventPoint, eventPoint, tool.type))
-                                            selectedElement = SelectedElement(id, "inside")
+                                            selectedElement = SelectedElement(id, "")
 
                                             action = Action.Drawing
                                         }
@@ -91,13 +99,16 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                                             getElementAtPosition(eventPoint, drawingHistory.currentElements)?.let { (element, position) ->
                                                 offset = eventPoint - element.point1
                                                 drawingHistory.saveState(drawingHistory.currentElements)
-                                                selectedElement = SelectedElement(element.id, position )
+                                                selectedElement = SelectedElement(element.id, position)
 
                                                 if (position == "inside") {
                                                     action = Action.Moving
                                                 } else {
                                                     action = Action.Resizing
                                                 }
+                                            } ?: run {
+                                                offset = eventPoint
+                                                action = Action.Panning
                                             }
                                         }
                                     }
@@ -130,6 +141,10 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                                                 )
                                             }
                                         }
+                                        Action.Panning -> {
+                                            val deltaPoint = eventPoint - offset
+                                            panOffset += deltaPoint
+                                        }
                                         Action.None -> {}
                                     }
                                 }
@@ -148,12 +163,14 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                     }
                 }
         ) {
-            for (element in drawingHistory.currentElements) {
-                drawPath(
-                    path = element.path,
-                    color = Color.Black,
-                    style = Stroke()
-                )
+             translate(panOffset.x, panOffset.y) {
+                for (element in drawingHistory.currentElements) {
+                    drawPath(
+                        path = element.path,
+                        color = Color.Black,
+                        style = Stroke()
+                    )
+                }
             }
         }
 

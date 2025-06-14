@@ -27,8 +27,6 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import ir.erfansn.drawing.ui.theme.DrawingTheme
-import kotlin.math.max
-import kotlin.math.min
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,37 +42,50 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+data class SelectedElement(
+    val id: Int,
+    val position: String
+)
+
 @Composable
 fun DrawingApp(modifier: Modifier = Modifier) {
     var action by remember { mutableStateOf<Action>(Action.None) }
     val elements = remember { mutableStateListOf<Element>() }
     var tool by remember { mutableStateOf<Tool>(Tool.Selecting) }
-    var selectedElement  by remember { mutableStateOf<Pair<Element, Offset>?>(null) }
+    var selectedElement  by remember { mutableStateOf<SelectedElement?>(null) }
     Box(modifier = modifier) {
         Canvas(
             modifier = Modifier
                 .safeDrawingPadding()
                 .fillMaxSize()
                 .pointerInput(Unit) {
+                    var offset = Offset.Zero
+
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent()
-                            val position = event.changes.first().position
+                            val eventPoint = event.changes.first().position
 
                             when (event.type) {
                                 PointerEventType.Press -> {
                                     when (val tool = tool) {
                                         is Tool.Drawing -> {
                                             val id = elements.size
-                                            elements += createElement(id, position, position, tool.type)
+                                            elements += createElement(id, eventPoint, eventPoint, tool.type)
+                                            selectedElement = SelectedElement(id, "inside")
 
                                             action = Action.Drawing
                                         }
                                         Tool.Selecting -> {
-                                            getElementAtPosition(position, elements)?.let {
-                                                selectedElement = it to (position - it.point1)
+                                            getElementAtPosition(eventPoint, elements)?.let { (element, position) ->
+                                                offset = eventPoint - element.point1
+                                                selectedElement = SelectedElement(element.id, position )
 
-                                                action = Action.Moving
+                                                if (position == "inside") {
+                                                    action = Action.Moving
+                                                } else {
+                                                    action = Action.Resizing
+                                                }
                                             }
                                         }
                                     }
@@ -83,15 +94,27 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                                 PointerEventType.Move -> {
                                     when (action) {
                                         Action.Drawing -> {
-                                            elements.updateElement(elements.lastIndex, point2 = position)
+                                            elements.updateElement(elements.lastIndex, point2 = eventPoint)
                                         }
                                         Action.Moving -> {
-                                            selectedElement?.let { (element, offset) ->
-                                                val newPosition = position - offset
+                                            selectedElement?.let { (id, _) ->
+                                                val newPosition = eventPoint - offset
+                                                val element = elements[id]
                                                 elements.updateElement(
-                                                    id = element.id,
+                                                    id = id,
                                                     point1 = newPosition,
                                                     point2 = newPosition + (element.point2 - element.point1)
+                                                )
+                                            }
+                                        }
+                                        Action.Resizing -> {
+                                            selectedElement?.let { (id, position) ->
+                                                val element = elements[id]
+                                                val (point1, point2) = resizeCoordinates(eventPoint, position, element.point1, element.point2)
+                                                elements.updateElement(
+                                                    id = id,
+                                                    point1 = point1,
+                                                    point2 = point2
                                                 )
                                             }
                                         }
@@ -100,10 +123,10 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                                 }
 
                                 PointerEventType.Release -> {
-                                    if (action == Action.Drawing) {
-                                        val element = elements.last()
+                                    if (action == Action.Drawing || action == Action.Resizing) {
+                                        val element = elements[selectedElement!!.id]
                                         val (point1, point2) = adjustElementCoordinates(element)
-                                        elements.updateElement(element.id, point1, point2, element.type)
+                                        elements.updateElement(element.id, point1, point2)
                                     }
                                     selectedElement = null
                                     action = Action.None
@@ -138,30 +161,6 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                 onClick = { tool = Tool.Drawing(ElementType.Rectangle) },
                 text = "Rectangle"
             )
-        }
-    }
-}
-
-// For lines, the coordinates are adjusted so that the starting point is always to the left or above the ending point.
-// For rectangles, the coordinates are adjusted to ensure the top-left corner is always the starting point.
-private fun adjustElementCoordinates(element: Element): Pair<Offset, Offset> {
-    val (x1, y1) = element.point1
-    val (x2, y2) = element.point2
-    when (element.type) {
-        ElementType.Line -> {
-            if (x1 < x2 || (x1 == x2 && y1 < y2)) {
-                return Offset(x1, y1) to Offset(x2, y2)
-            } else {
-                return Offset(x2, y2) to Offset(x1, y1)
-            }
-        }
-
-        ElementType.Rectangle -> {
-            val minX = min(x1, x2)
-            val minY = min(y1, y2)
-            val maxX = max(x1, x2)
-            val maxY = max(y1, y2)
-            return Offset(minX, minY) to Offset(maxX, maxY)
         }
     }
 }

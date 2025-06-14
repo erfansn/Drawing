@@ -1,25 +1,19 @@
 package ir.erfansn.drawing
 
 import android.os.Bundle
-import android.widget.Space
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
-import androidx.compose.foundation.gestures.calculatePan
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Button
@@ -27,8 +21,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,13 +30,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import ir.erfansn.drawing.ui.theme.DrawingTheme
-import java.time.OffsetTime
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,7 +46,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             DrawingTheme {
                 DrawingApp(
-                    modifier = Modifier.safeDrawingPadding()
+                    modifier = Modifier.fillMaxSize()
+                        .safeDrawingPadding()
                 )
             }
         }
@@ -71,14 +66,17 @@ fun DrawingApp(modifier: Modifier = Modifier) {
     var tool by remember { mutableStateOf<Tool>(Tool.Selecting) }
     var selectedElement  by remember { mutableStateOf<SelectedElement?>(null) }
     var panOffset by remember { mutableStateOf(Offset.Zero) }
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var zoomOffset by remember { mutableStateOf(Offset.Zero) }
     Box(modifier = modifier) {
         Canvas(
             modifier = Modifier
-                .safeDrawingPadding()
                 .fillMaxSize()
                 .pointerInput(Unit) {
                     var offset = Offset.Zero
-                    fun touchCoordinate(point: Offset) = point - panOffset
+                    fun touchCoordinate(point: Offset): Offset {
+                        return ((point - panOffset * zoom) + zoomOffset) / zoom
+                    }
 
                     awaitPointerEventScope {
                         while (true) {
@@ -163,13 +161,18 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                     }
                 }
         ) {
-             translate(panOffset.x, panOffset.y) {
-                for (element in drawingHistory.currentElements) {
-                    drawPath(
-                        path = element.path,
-                        color = Color.Black,
-                        style = Stroke()
-                    )
+            val (scaledWidth, scaledHeight) = size * zoom
+            zoomOffset = (Offset(scaledWidth, scaledHeight) - Offset(size.width, size.height)) / 2f
+
+            translate(panOffset.x * zoom - zoomOffset.x, panOffset.y * zoom - zoomOffset.y) {
+                scale(zoom, pivot = Offset.Zero) {
+                    for (element in drawingHistory.currentElements) {
+                        drawPath(
+                            path = element.path,
+                            color = Color.Black,
+                            style = Stroke()
+                        )
+                    }
                 }
             }
         }
@@ -196,12 +199,33 @@ fun DrawingApp(modifier: Modifier = Modifier) {
                 text = "Rectangle"
             )
         }
-        Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-            Button(onClick = drawingHistory::undo) {
-                Text("Undo")
+        Row(
+            Modifier.align(Alignment.BottomStart).padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Column {
+                Button(onClick = drawingHistory::undo) {
+                    Text("Undo")
+                }
+                Button(onClick = drawingHistory::redo) {
+                    Text("Redo")
+                }
             }
-            Button(onClick = drawingHistory::redo) {
-                Text("Redo")
+            Column {
+                Button(onClick = {
+                    if (zoom < 3.0f) {
+                        zoom += 0.1f
+                    }
+                }) {
+                    Text("Zoom In")
+                }
+                Button(onClick = {
+                    if (zoom > 0.1f) {
+                        zoom -= 0.1f
+                    }
+                }) {
+                    Text("Zoom Out")
+                }
             }
         }
     }
